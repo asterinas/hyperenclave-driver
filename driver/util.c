@@ -47,11 +47,6 @@ struct vm_struct *(*__get_vm_area_sym)(unsigned long, unsigned long,
 				       unsigned long, unsigned long);
 #endif
 
-#ifdef CONFIG_DIRECT_KERN_LOGGING
-void *safe_print_seq_sym;
-typeof(printk_safe_flush) *printk_safe_flush_sym;
-#endif
-
 /*
  * WARNING: It's NOT recommended to use this function. The unexported symbols
  * are not stable over different kernel versions.
@@ -92,10 +87,6 @@ static int __he_kallsyms_init(void)
 	RESOLVE_EXTERNAL_SYMBOL(__get_vm_area_caller);
 #else
 	RESOLVE_EXTERNAL_SYMBOL(__get_vm_area);
-#endif
-#ifdef CONFIG_DIRECT_KERN_LOGGING
-	RESOLVE_EXTERNAL_SYMBOL(safe_print_seq);
-	RESOLVE_EXTERNAL_SYMBOL(printk_safe_flush);
 #endif
 
 #undef RESOLVE_EXTERNAL_SYMBOL

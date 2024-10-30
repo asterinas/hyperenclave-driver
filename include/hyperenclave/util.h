@@ -108,7 +108,4 @@ static inline void he_cr4_clear_vmxe(void)
 #endif
 }
 
-/* Directly forward log generated in hyperenclave to the kernel log buffer. */
-/* #define CONFIG_DIRECT_KERN_LOGGING */
-
 #endif /*_HYPERENCLAVE_UTIL_H_ */

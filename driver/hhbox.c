@@ -14,7 +14,6 @@
 #include "feature.h"
 #include "hhbox.h"
 
-#ifndef CONFIG_DIRECT_KERN_LOGGING
 /*
  * A ring buffer where hyperenclave writes logs. C-driver then periodically
  * forwards them to the kernel by printk.
@@ -25,8 +24,6 @@ static ulong he_log_size = LOG_SIZE_DEFAULT;
 module_param(he_log_size, ulong, S_IRUGO);
 MODULE_PARM_DESC(he_log_size, "Number of Hyperenclave log buffer entry. "
 			      "Range: [64, 2048]");
-
-#endif
 
 static ulong he_log_flush_freq = HHBOX_LOG_HEARTBEAT_MS_DEFAULT;
 module_param(he_log_flush_freq, ulong, S_IRUGO);
@@ -113,10 +110,6 @@ static void deregister_vmm_check_wq(void)
  */
 static void flush_hv_log_work_func(struct work_struct *work)
 {
-#ifdef CONFIG_DIRECT_KERN_LOGGING
-	extern typeof(printk_safe_flush) *printk_safe_flush_sym;
-	printk_safe_flush_sym();
-#else
 	char *s;
 	int i, j;
 	struct he_logentry *hl;
@@ -152,7 +145,6 @@ static void flush_hv_log_work_func(struct work_struct *work)
 		/* Make sure load to s is done. */
 		WRITE_ONCE(hl->used, false);
 	}
-#endif /* CONFIG_DIRECT_KERN_LOGGING */
 
 	if (work)
 		schedule_delayed_work(&flush_hv_log_work,
@@ -194,27 +186,6 @@ int he_init_log(struct hyper_header *header)
 		}
 	}
 
-#ifdef CONFIG_DIRECT_KERN_LOGGING
-#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 14, 0)
-	BUILD_BUG_ON("safe_print_seq is removed after 5.14.0. "
-		     "Comment #define CONFIG_DIRECT_KERN_LOGGING");
-#endif
-	{
-		unsigned long long safe_print_seq_start_va,
-			safe_print_seq_start_pa;
-		unsigned long long percpu_offset_pa;
-		extern void *safe_print_seq_sym;
-		/* Get percpu buffer safe_print_seq info */
-		percpu_offset_pa = __pa_symbol(__per_cpu_offset);
-		safe_print_seq_start_va =
-			(u64)safe_print_seq_sym + __per_cpu_offset[0];
-		safe_print_seq_start_pa =
-			virt_to_phys((void *)safe_print_seq_start_va);
-
-		header->safe_print_seq_start_pa = safe_print_seq_start_pa;
-		header->percpu_offset_pa = percpu_offset_pa;
-	}
-#else
 	he_log_size = min(max(he_log_size, 64UL), 2048UL);
 	he_log = kzalloc(sizeof(struct he_log) +
 				 he_log_size * sizeof(struct he_logentry),
@@ -228,7 +199,6 @@ int he_init_log(struct hyper_header *header)
 	he_info("log buffer size %luKB",
 		sizeof(struct he_log) +
 			he_log_size * sizeof(struct he_logentry) / 1024);
-#endif /* CONFIG_DIRECT_KERN_LOGGING */
 	/* Vmm stats info */
 	vmm_anomaly_cpus = kzalloc(sizeof(*vmm_anomaly_cpus), GFP_KERNEL);
 	if (!vmm_anomaly_cpus) {
@@ -257,9 +227,7 @@ int he_deinit_log(void)
 
 	kfree(vmm_anomaly_cpus);
 	vmm_anomaly_cpus = NULL;
-#ifndef CONFIG_DIRECT_KERN_LOGGING
 	kfree(he_log);
 	he_log = NULL;
-#endif
 	return 0;
 }
