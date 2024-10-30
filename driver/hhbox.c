@@ -14,11 +14,24 @@
 #include "feature.h"
 #include "hhbox.h"
 
-#ifndef DISABLE_LOGGING
+#ifndef CONFIG_DIRECT_KERN_LOGGING
+/*
+ * A ring buffer where hyperenclave writes logs. C-driver then periodically
+ * forwards them to the kernel by printk.
+ */
+static struct he_log *he_log;
+
+static ulong he_log_size = LOG_SIZE_DEFAULT;
+module_param(he_log_size, ulong, S_IRUGO);
+MODULE_PARM_DESC(he_log_size, "Number of Hyperenclave log buffer entry. "
+			      "Range: [64, 2048]");
+
+#endif
+
 static ulong he_log_flush_freq = HHBOX_LOG_HEARTBEAT_MS_DEFAULT;
 module_param(he_log_flush_freq, ulong, S_IRUGO);
 MODULE_PARM_DESC(he_log_flush_freq, "Maximum interval (in ms) in which "
-		"Hyperenclave log is flushed.");
+				    "Hyperenclave log is flushed.");
 
 /* All init to zeros. Set to 1 to indicate a CPU is panic in Hyperenclave. */
 static cpumask_t *vmm_anomaly_cpus;
@@ -58,10 +71,11 @@ static bool alloc_vmm_check_wq(void)
 
 static void dealloc_vmm_check_wq(void)
 {
-	if (!hhbox_crash_enabled)
+	if (!hhbox_crash_enabled || !vmm_check_wq)
 		return;
 
 	destroy_workqueue(vmm_check_wq);
+	vmm_check_wq = NULL;
 }
 
 static void register_vmm_check_wq(void)
@@ -71,7 +85,7 @@ static void register_vmm_check_wq(void)
 	if (!hhbox_crash_enabled)
 		return;
 
-	for_each_online_cpu(cpu) {
+	for_each_online_cpu (cpu) {
 		struct delayed_work *dw = &per_cpu(vmm_check_work, cpu);
 
 		INIT_DELAYED_WORK(dw, vmm_check_work_func);
@@ -88,7 +102,7 @@ static void deregister_vmm_check_wq(void)
 	if (!hhbox_crash_enabled)
 		return;
 
-	for_each_online_cpu(cpu) {
+	for_each_online_cpu (cpu) {
 		cancel_delayed_work_sync(&per_cpu(vmm_check_work, cpu));
 	}
 }
@@ -99,12 +113,50 @@ static void deregister_vmm_check_wq(void)
  */
 static void flush_hv_log_work_func(struct work_struct *work)
 {
+#ifdef CONFIG_DIRECT_KERN_LOGGING
 	extern typeof(printk_safe_flush) *printk_safe_flush_sym;
 	printk_safe_flush_sym();
+#else
+	char *s;
+	int i, j;
+	struct he_logentry *hl;
+	static unsigned long long he_log_index;
+
+	if (he_log->log_lost > 0) {
+		he_warn("Hyperenclave lost %u logs. Enlarge log buffer or increase log "
+			"refreshing frequency.",
+			he_log->log_lost);
+		he_log->log_lost = 0;
+	}
+
+	for (j = 0; j < he_log->size; j++) {
+		i = he_log_index;
+		hl = &(he_log->log[i]);
+		if (!hl->used)
+			break;
+		he_log_index = (he_log_index + 1) % he_log->size;
+		s = hl->buf;
+
+		/*
+		 * Despite hyperenclave should pass a string ending with '\0', we
+		 * add a final guard.
+		 */
+		s[LOGENTRY_SIZE - 1] = '\0';
+
+		/*
+		 * API since v0.0.1, 1991
+		 * Note that this may overrun kernel's log buffer. Traling spaces for flushing.
+		 */
+		printk("%s", s);
+
+		/* Make sure load to s is done. */
+		WRITE_ONCE(hl->used, false);
+	}
+#endif /* CONFIG_DIRECT_KERN_LOGGING */
 
 	if (work)
 		schedule_delayed_work(&flush_hv_log_work,
-			msecs_to_jiffies(he_log_flush_freq));
+				      msecs_to_jiffies(he_log_flush_freq));
 }
 
 static void register_flush_hv_log_work(void)
@@ -124,45 +176,64 @@ static void deregister_flush_hv_log_work(void)
 
 	cancel_delayed_work_sync(&flush_hv_log_work);
 }
-#endif /* DISABLE_LOGGING */
 
 void he_flush_log(void)
 {
-#ifndef DISABLE_LOGGING
 	return flush_hv_log_work_func(NULL);
-#endif /* DISABLE_LOGGING */
 }
 
 int he_init_log(struct hyper_header *header)
 {
-    int r = 0;
-#ifndef DISABLE_LOGGING
+	int r = 0;
 
 	if (alloc_vmm_check_wq()) {
 		if (!vmm_check_wq) {
 			he_err("alloc_workqueue failed\n");
 			r = -ENOMEM;
-            goto out;
+			goto out;
 		}
 	}
 
+#ifdef CONFIG_DIRECT_KERN_LOGGING
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 14, 0)
+	BUILD_BUG_ON("safe_print_seq is removed after 5.14.0. "
+		     "Comment #define CONFIG_DIRECT_KERN_LOGGING");
+#endif
 	{
-		unsigned long long safe_print_seq_start_va, safe_print_seq_start_pa;
+		unsigned long long safe_print_seq_start_va,
+			safe_print_seq_start_pa;
 		unsigned long long percpu_offset_pa;
 		extern void *safe_print_seq_sym;
 		/* Get percpu buffer safe_print_seq info */
 		percpu_offset_pa = __pa_symbol(__per_cpu_offset);
-		safe_print_seq_start_va = (u64)safe_print_seq_sym + __per_cpu_offset[0];
-		safe_print_seq_start_pa = virt_to_phys((void *)safe_print_seq_start_va);
+		safe_print_seq_start_va =
+			(u64)safe_print_seq_sym + __per_cpu_offset[0];
+		safe_print_seq_start_pa =
+			virt_to_phys((void *)safe_print_seq_start_va);
 
 		header->safe_print_seq_start_pa = safe_print_seq_start_pa;
 		header->percpu_offset_pa = percpu_offset_pa;
 	}
+#else
+	he_log_size = min(max(he_log_size, 64UL), 2048UL);
+	he_log = kzalloc(sizeof(struct he_log) +
+				 he_log_size * sizeof(struct he_logentry),
+			 GFP_KERNEL);
+	if (!he_log) {
+		r = -ENOMEM;
+		goto out;
+	}
+	he_log->size = he_log_size;
+	header->he_log_pa = virt_to_phys(he_log);
+	he_info("log buffer size %luKB",
+		sizeof(struct he_log) +
+			he_log_size * sizeof(struct he_logentry) / 1024);
+#endif /* CONFIG_DIRECT_KERN_LOGGING */
 	/* Vmm stats info */
 	vmm_anomaly_cpus = kzalloc(sizeof(*vmm_anomaly_cpus), GFP_KERNEL);
 	if (!vmm_anomaly_cpus) {
 		r = -ENOMEM;
-		goto out;
+		goto err;
 	}
 	he_debug("vmm_anomaly_cpus pa: %llx\n", virt_to_phys(vmm_anomaly_cpus));
 	header->vmm_anomaly_cpus_pa = virt_to_phys(vmm_anomaly_cpus);
@@ -171,19 +242,24 @@ int he_init_log(struct hyper_header *header)
 	register_flush_hv_log_work();
 
 out:
-#endif /* DISABLE_LOGGING */
+	return r;
+
+err:
+	kfree(he_log);
 	return r;
 }
 
 int he_deinit_log(void)
 {
-#ifndef DISABLE_LOGGING
 	deregister_vmm_check_wq();
 	dealloc_vmm_check_wq();
 	deregister_flush_hv_log_work();
 
 	kfree(vmm_anomaly_cpus);
 	vmm_anomaly_cpus = NULL;
-#endif /* DISABLE_LOGGING */
+#ifndef CONFIG_DIRECT_KERN_LOGGING
+	kfree(he_log);
+	he_log = NULL;
+#endif
 	return 0;
 }

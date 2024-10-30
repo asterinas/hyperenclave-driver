@@ -58,7 +58,7 @@ static unsigned int __inspect_tpm(unsigned long long *phy_addr,
 		he_info("using hardware tpm\n");
 		return HW_TPM_MMIO_SIZE;
 	} else {
-		for_each_pci_dev(pdev) {
+		for_each_pci_dev (pdev) {
 			if (pdev->vendor != PCI_VENDOR_ID_HYGON ||
 			    pdev->device != 0x1456)
 				continue;
@@ -81,7 +81,8 @@ static unsigned int __inspect_tpm(unsigned long long *phy_addr,
 		*tpm_type = TPM_TYPE_HYGON_FTPM;
 		*phy_addr = mpsp_dev->resource[2].start;
 		he_info("using firmware tpm\n");
-		return mpsp_dev->resource[2].end - mpsp_dev->resource[2].start + 1;
+		return mpsp_dev->resource[2].end - mpsp_dev->resource[2].start +
+		       1;
 	}
 }
 

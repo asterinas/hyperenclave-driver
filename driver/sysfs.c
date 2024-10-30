@@ -104,7 +104,8 @@ static long he_ioctl(struct file *file, unsigned int ioctl, unsigned long arg)
 void he_vma_open(struct vm_area_struct *vma)
 {
 	if (vma->vm_flags & VM_PFNMAP)
-		kref_get(&((struct he_enclave *)(vma->vm_private_data))->refcount);
+		kref_get(&((struct he_enclave *)(vma->vm_private_data))
+				  ->refcount);
 }
 
 static vm_fault_t he_vma_fault(struct vm_fault *vmf)

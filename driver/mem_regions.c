@@ -188,7 +188,8 @@ bool get_hypervisor_meminfo(void)
 			start = rsrv_mem_ranges[i].start - 1;
 			first = false;
 		}
-		end = rsrv_mem_ranges[i].start - 1 + rsrv_mem_ranges[i].size - 1;
+		end = rsrv_mem_ranges[i].start - 1 + rsrv_mem_ranges[i].size -
+		      1;
 	}
 
 	if (first)

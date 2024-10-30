@@ -41,7 +41,8 @@ bool mem_test(void)
 		remain_size = rsrv_mem_ranges[region_idx].size;
 
 		while (remain_size > 0) {
-			size = remain_size > batch_size ? batch_size : remain_size;
+			size = remain_size > batch_size ? batch_size :
+							  remain_size;
 			mem_base_addr = (unsigned long)he_ioremap(
 				phys, (unsigned long)NULL, size, sme_mask);
 

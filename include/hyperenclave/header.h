@@ -63,6 +63,13 @@ struct hyper_header {
 	 * @note Filled at build time.
 	 */
 	int (*entry)(unsigned int);
+
+	/*
+	 * Rust hypervisor version.
+	 * @note Should be the same as c-driver's.
+	 */
+	u64 version;
+
 	/** Configured maximum logical CPU ID + 1.
 	 * @note Filled by Linux loader driver before entry.
 	 */
@@ -85,9 +92,15 @@ struct hyper_header {
 	unsigned int tpm_mmio_size;
 	unsigned long long tpm_mmio_pa;
 
+#ifdef CONFIG_DIRECT_KERN_LOGGING
 	/* Percpu buffer safe_print_seq info */
 	unsigned long long safe_print_seq_start_pa;
 	unsigned long long percpu_offset_pa;
+#else
+	/* Hyperenclave writes its logs to shared memory. */
+	unsigned long long he_log_pa;
+	unsigned long long padding;
+#endif /* CONFIG_DIRECT_KERN_LOGGING */
 
 	/* Used for recored vmm states */
 	unsigned long long vmm_anomaly_cpus_pa;
