@@ -11,6 +11,7 @@
 #include <linux/sort.h>
 
 #include <hyperenclave/hypercall.h>
+#include <hyperenclave/util.h>
 #include <hyperenclave/log.h>
 
 #include "elf.h"
@@ -50,7 +51,7 @@
  * bootloader. It is not modified by kernel.
  */
 static struct e820_table *e820_table_firmware;
-static struct e820_table **e820_table_firmware_sym;
+struct e820_table **e820_table_firmware_sym;
 
 static struct memory_range e820_system_ram[E820_MAX_ENTRIES];
 
@@ -127,7 +128,6 @@ int get_convertible_memory(void)
 	unsigned long long prev_end;
 	unsigned long long start, end;
 
-	RESOLVE_EXTERNAL_SYMBOL(e820_table_firmware);
 	e820_table_firmware = *e820_table_firmware_sym;
 
 	for (i = 0; i < e820_table_firmware->nr_entries; i++) {

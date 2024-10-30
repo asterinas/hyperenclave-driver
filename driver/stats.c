@@ -6,10 +6,10 @@
  */
 
 #include <hyperenclave/log.h>
+#include <hyperenclave/util.h>
 
 #include "enclave.h"
 #include "feature.h"
-#include "main.h"
 #include "stats.h"
 
 char *statstype_str[STATS_TYPES] = {

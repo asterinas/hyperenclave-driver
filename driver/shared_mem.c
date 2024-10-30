@@ -7,12 +7,12 @@
 
 #include <linux/slab.h>
 #include <linux/version.h>
-#include "main.h"
 #include "stats.h"
 #include "enclave.h"
 #include "feature.h"
 
 #include <hyperenclave/hypercall.h>
+#include <hyperenclave/util.h>
 #include <hyperenclave/log.h>
 
 static int insert_shared_memory(struct shmem_struct *shmem, unsigned long start,

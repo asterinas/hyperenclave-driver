@@ -25,6 +25,7 @@
 
 #include <asm/hyperenclave/header.h>
 #include <hyperenclave/memory.h>
+#include <hyperenclave/util.h>
 
 #define HE_SIGNATURE "HYPERENC"
 
@@ -62,7 +63,6 @@ struct hyper_header {
 	 * @note Filled at build time.
 	 */
 	int (*entry)(unsigned int);
-
 	/** Configured maximum logical CPU ID + 1.
 	 * @note Filled by Linux loader driver before entry.
 	 */
@@ -90,7 +90,7 @@ struct hyper_header {
 	unsigned long long percpu_offset_pa;
 
 	/* Used for recored vmm states */
-	unsigned long long vmm_states_pa;
+	unsigned long long vmm_anomaly_cpus_pa;
 
 	unsigned long long feature_mask;
 

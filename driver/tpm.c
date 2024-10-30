@@ -11,9 +11,9 @@
 #include <crypto/sm3.h>
 
 #include <hyperenclave/hypercall.h>
+#include <hyperenclave/util.h>
 #include <hyperenclave/log.h>
 
-#include "main.h"
 #include "feature.h"
 #include "tpm.h"
 

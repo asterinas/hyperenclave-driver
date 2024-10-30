@@ -9,9 +9,9 @@
 #include <linux/shmem_fs.h>
 
 #include <hyperenclave/hypercall.h>
+#include <hyperenclave/util.h>
 #include <hyperenclave/log.h>
 
-#include "main.h"
 #include "stats.h"
 #include "reclaim.h"
 

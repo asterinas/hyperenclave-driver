@@ -7,8 +7,8 @@
 
 #include <hyperenclave/log.h>
 #include <hyperenclave/sme.h>
+#include <hyperenclave/util.h>
 
-#include "main.h"
 #include "init_mem.h"
 #include "ioremap.h"
 

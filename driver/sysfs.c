@@ -5,18 +5,19 @@
  * Copyright (C) 2020-2023 The HyperEnclave Project. All rights reserved.
  */
 
+#include <linux/sysctl.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
-#include <linux/sysctl.h>
-#include <hyperenclave/hypercall.h>
+
 #include <hyperenclave/log.h>
 #include <hyperenclave/tdm.h>
+#include <hyperenclave/util.h>
+#include <hyperenclave/hypercall.h>
 
 #include "edmm.h"
 #include "enclave.h"
 #include "feature.h"
 #include "hhbox.h"
-#include "main.h"
 #include "reclaim.h"
 #include "sysfs.h"
 #include "tpm.h"
@@ -264,7 +265,7 @@ int hypervisor_log_sysctl(struct ctl_table *table, int write,
 	switch (c) {
 	case 'd':
 		/* Dump hypervisor log to main logbuf */
-		printk_safe_flush_sym();
+		he_flush_log();
 		break;
 	default:
 		return -EINVAL;
@@ -307,12 +308,8 @@ out:
 	if (update) {
 		if (hyper_enclave_enabled) {
 			tpm_chip_ops_update();
-			register_vmm_check_wq();
-			register_flush_hv_log_work();
 		} else {
 			tpm_chip_ops_cleanup();
-			deregister_vmm_check_wq();
-			deregister_flush_hv_log_work();
 			disable_epc_reclaimer();
 		}
 	}

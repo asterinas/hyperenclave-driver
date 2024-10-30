@@ -8,8 +8,8 @@
 #ifndef _INIT_MEM_H
 #define _INIT_MEM_H
 
+#include <hyperenclave/util.h>
 #include <hyperenclave/header.h>
-#include "main.h"
 
 extern struct memory_range rsrv_mem_ranges[MAX_INIT_EPC_REGIONS];
 extern unsigned int nr_rsrv_mem;
