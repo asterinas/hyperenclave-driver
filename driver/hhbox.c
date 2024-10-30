@@ -26,7 +26,7 @@ MODULE_PARM_DESC(he_log_size, "Number of Hyperenclave log buffer entry. "
 			      "Range: [64, 2048]");
 
 static ulong he_log_flush_freq = HHBOX_LOG_HEARTBEAT_MS_DEFAULT;
-module_param(he_log_flush_freq, ulong, S_IRUGO);
+module_param(he_log_flush_freq, ulong, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(he_log_flush_freq, "Maximum interval (in ms) in which "
 				    "Hyperenclave log is flushed.");
 
