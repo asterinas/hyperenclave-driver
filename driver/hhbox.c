@@ -20,9 +20,9 @@
  */
 static struct he_log *he_log;
 
-static ulong he_log_size = LOG_SIZE_DEFAULT;
-module_param(he_log_size, ulong, S_IRUGO);
-MODULE_PARM_DESC(he_log_size, "Number of Hyperenclave log buffer entry. "
+static ulong he_log_num = LOG_SIZE_DEFAULT;
+module_param(he_log_num, ulong, S_IRUGO);
+MODULE_PARM_DESC(he_log_num, "Number of Hyperenclave log buffer entry. "
 			      "Range: [64, 2048]");
 
 static ulong he_log_flush_freq = HHBOX_LOG_HEARTBEAT_MS_DEFAULT;
@@ -122,12 +122,12 @@ static void flush_hv_log_work_func(struct work_struct *work)
 		he_log->log_lost = 0;
 	}
 
-	for (j = 0; j < he_log->size; j++) {
+	for (j = 0; j < he_log->num; j++) {
 		i = he_log_index;
 		hl = &(he_log->log[i]);
 		if (!hl->used)
 			break;
-		he_log_index = (he_log_index + 1) % he_log->size;
+		he_log_index = (he_log_index + 1) % he_log->num;
 		s = hl->buf;
 
 		/*
@@ -186,19 +186,19 @@ int he_init_log(struct hyper_header *header)
 		}
 	}
 
-	he_log_size = min(max(he_log_size, 64UL), 2048UL);
+	he_log_num = min(max(he_log_num, 64UL), 2048UL);
 	he_log = kzalloc(sizeof(struct he_log) +
-				 he_log_size * sizeof(struct he_logentry),
+				 he_log_num * sizeof(struct he_logentry),
 			 GFP_KERNEL);
 	if (!he_log) {
 		r = -ENOMEM;
 		goto out;
 	}
-	he_log->size = he_log_size;
+	he_log->num = he_log_num;
 	header->he_log_pa = virt_to_phys(he_log);
 	he_info("log buffer size %luKB",
 		sizeof(struct he_log) +
-			he_log_size * sizeof(struct he_logentry) / 1024);
+			he_log_num * sizeof(struct he_logentry) / 1024);
 	/* Vmm stats info */
 	vmm_anomaly_cpus = kzalloc(sizeof(*vmm_anomaly_cpus), GFP_KERNEL);
 	if (!vmm_anomaly_cpus) {
