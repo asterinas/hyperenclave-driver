@@ -24,6 +24,7 @@
 #include <linux/types.h>
 
 #include <asm/hyperenclave/header.h>
+#include <generated/version.h>
 #include <hyperenclave/memory.h>
 #include <hyperenclave/util.h>
 
@@ -65,10 +66,10 @@ struct hyper_header {
 	int (*entry)(unsigned int);
 
 	/*
-	 * Rust hypervisor version.
-	 * @note Should be the same as c-driver's.
+	 * Versions. Each repo has a VERSION file which is 'va.b.c'. Encode as
+	 * (a << 16) | (b << 8) | c
 	 */
-	u64 version;
+	u32 version;
 
 	/** Configured maximum logical CPU ID + 1.
 	 * @note Filled by Linux loader driver before entry.

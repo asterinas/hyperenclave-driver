@@ -25,4 +25,12 @@ version="`echo $describe | sed -e 's/\([^-]*\)-\(.*\)/\1 (\2)/'`"
 
 cd - > /dev/null
 
-echo "#define HE_VERSION \"$version\""
+# v1.2.3-g123456-dirty
+echo "#define HE_VERSION_LONG \"$version\""
+
+cd "$1" > /dev/null
+python3 ./scripts/gen_version.py
+
+if [ $? -ne 0 ]; then
+	exit 1
+fi
