@@ -30,7 +30,7 @@ struct he_logentry {
 
 struct he_log {
 	uint32_t log_lost;
-	ulong size;
+	ulong num;
 	struct he_logentry log[0];
 };
 
