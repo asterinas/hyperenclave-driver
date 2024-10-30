@@ -45,6 +45,7 @@
 #include <hyperenclave/log.h>
 #include <hyperenclave/sme.h>
 #include <hyperenclave/tdm.h>
+#include <hyperenclave/util.h>
 #include <hyperenclave/vendor.h>
 
 #include "crypto.h"
@@ -55,7 +56,6 @@
 #include "hhbox.h"
 #include "init_mem.h"
 #include "ioremap.h"
-#include "main.h"
 #include "mem_regions.h"
 #include "mem_test.h"
 #include "param_parser.h"
@@ -114,7 +114,7 @@ static unsigned long long hv_feature_mask;
 
 typeof(ioremap_page_range) *ioremap_page_range_sym;
 #ifdef CONFIG_X86
-typeof(flush_tlb_kernel_range) *flush_tlb_kernel_range_sym;
+void (*flush_tlb_kernel_range_sym)(unsigned long start, unsigned long end);
 #endif
 #ifdef CONFIG_ARM
 static typeof(__boot_cpu_mode) *__boot_cpu_mode_sym;
@@ -123,7 +123,6 @@ static typeof(__boot_cpu_mode) *__boot_cpu_mode_sym;
 static typeof(__hyp_stub_vectors) *__hyp_stub_vectors_sym;
 #endif
 
-typeof(printk_safe_flush) *printk_safe_flush_sym;
 void (*mmput_async_sym)(struct mm_struct *mm);
 
 #ifdef CONFIG_X86
@@ -162,10 +161,6 @@ static void enter_hypervisor(void *info)
 	if (err)
 		error_code = err;
 
-#if defined(CONFIG_X86) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
-	/* on Intel, VMXE is now on - update the shadow */
-	cr4_init_shadow();
-#endif
 
 	atomic_inc(&call_done);
 }
@@ -215,10 +210,6 @@ int he_cmd_enable(void)
 	int len_config_header;
 	void *load_addr;
 
-	void *safe_print_seq_sym;
-	unsigned long long safe_print_seq_start_va, safe_print_seq_start_pa;
-	unsigned long long percpu_offset_pa;
-
 	memset(digest, 0, sizeof(digest));
 	fw_name = he_get_fw_name();
 	if (!fw_name) {
@@ -241,18 +232,10 @@ int he_cmd_enable(void)
 #ifdef CONFIG_X86
 	if (boot_cpu_has(X86_FEATURE_VMX)) {
 		u64 features;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0) || \
-	LINUX_VERSION_CODE <= KERNEL_VERSION(4, 9, 0)
-		rdmsrl(MSR_IA32_FEATURE_CONTROL, features);
-#else
-		rdmsrl(MSR_IA32_FEAT_CTL, features);
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0) || \
-	LINUX_VERSION_CODE <= KERNEL_VERSION(4, 9, 0)
-		if ((features & FEATURE_CONTROL_VMXON_ENABLED_OUTSIDE_SMX) == 0)
-#else
-		if ((features & FEAT_CTL_VMX_ENABLED_OUTSIDE_SMX) == 0)
-#endif
+
+		HE_RDMSRL_IA32_FEATURE_CONTROL(features)
+
+		if ((features & HE_ENABLE_VMX_FLAG) == 0)
 		{
 			he_err("VT-x disabled by Firmware/BIOS\n");
 			err = -ENODEV;
@@ -419,23 +402,10 @@ int he_cmd_enable(void)
 	header->tpm_mmio_size = tpm_mmio_size;
 	header->tpm_mmio_pa = tpm_mmio_pa;
 
-	/* Get percpu buffer safe_print_seq info */
-	percpu_offset_pa = __pa_symbol(__per_cpu_offset);
-	RESOLVE_EXTERNAL_SYMBOL(safe_print_seq);
-	safe_print_seq_start_va = (u64)safe_print_seq_sym + __per_cpu_offset[0];
-	safe_print_seq_start_pa = virt_to_phys((void *)safe_print_seq_start_va);
-
-	header->safe_print_seq_start_pa = safe_print_seq_start_pa;
-	header->percpu_offset_pa = percpu_offset_pa;
-
-	/* Vmm stats info */
-	vmm_states = kzalloc(sizeof(*vmm_states), GFP_KERNEL);
-	if (!vmm_states) {
-		err = -ENOMEM;
+	if ((err = he_init_log(header)) != 0) {
+		he_err("fail to initalize logging.");
 		goto error_unmap;
 	}
-	he_debug("vmm_states pa: %llx\n", virt_to_phys(vmm_states));
-	header->vmm_states_pa = virt_to_phys(vmm_states);
 
 	header->feature_mask = hv_feature_mask;
 
@@ -466,13 +436,13 @@ int he_cmd_enable(void)
 	if (error_code) {
 		err = error_code;
 		he_err("error_code: %d\n", error_code);
-		goto error_free_vmm_stat;
+		goto error_deinit_log;
 	}
 
 	err = init_cmrm();
 	if (err) {
 		he_err("Initialize CMRM fail, err: %d\n", err);
-		goto error_free_vmm_stat;
+		goto error_deinit_log;
 	}
 
 	kvfree(mem_regions);
@@ -483,8 +453,8 @@ int he_cmd_enable(void)
 	he_info("The hyperenclave is opening.\n");
 	return 0;
 
-error_free_vmm_stat:
-	kfree(vmm_states);
+error_deinit_log:
+	he_deinit_log();
 
 error_unmap:
 	he_firmware_free();
@@ -519,10 +489,8 @@ static void leave_hypervisor(void *info)
 	if (err)
 		error_code = err;
 
-#if defined(CONFIG_X86) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 	/* on Intel, VMXE is now off - update the shadow */
-	cr4_init_shadow();
-#endif
+	he_cr4_clear_vmxe();
 
 	atomic_inc(&call_done);
 }
@@ -606,16 +574,10 @@ static int __init he_init(void)
 {
 	int err;
 
-	RESOLVE_EXTERNAL_SYMBOL(ioremap_page_range);
-	RESOLVE_EXTERNAL_SYMBOL(flush_tlb_kernel_range);
-#ifdef CONFIG_ARM
-	RESOLVE_EXTERNAL_SYMBOL(__boot_cpu_mode);
-#endif
-#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
-	RESOLVE_EXTERNAL_SYMBOL(__hyp_stub_vectors);
-#endif
-	RESOLVE_EXTERNAL_SYMBOL(printk_safe_flush);
-	RESOLVE_EXTERNAL_SYMBOL(mmput_async);
+	if (he_kallsyms_init() != 0) {
+		he_err("Fail to initialize kernel symbols.\n");
+		return -ENOENT;
+	}
 
 	cpu_vendor_detect();
 	tdm_init();
@@ -657,20 +619,9 @@ static int __init he_init(void)
 		goto exit_reboot_notifier;
 	}
 
-	if (alloc_vmm_check_wq()) {
-		if (!vmm_check_wq) {
-			he_err("alloc_workqueue failed\n");
-			err = -ENOMEM;
-			goto exit_alloc_wq;
-		}
-	}
-
 	tdm.ops->proc_init();
 
 	return 0;
-
-exit_alloc_wq:
-	unregister_sysctl_table(hyper_enclave_table_header);
 
 exit_reboot_notifier:
 	unregister_reboot_notifier(&he_shutdown_nb);
@@ -686,8 +637,7 @@ static void __exit he_exit(void)
 	he_firmware_free();
 	unregister_sysctl_table(hyper_enclave_table_header);
 	tdm.ops->proc_remove();
-	dealloc_vmm_check_wq();
-	kfree(vmm_states);
+	he_deinit_log();
 	free_epc_pages();
 }
 

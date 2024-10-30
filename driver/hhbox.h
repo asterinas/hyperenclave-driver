@@ -11,23 +11,27 @@
 #include <linux/cpumask.h>
 #include <linux/workqueue.h>
 
-#define HHBOX_LOG_HEARTBEAT_MS 10000
-#define HHBOX_CRASH_HEARTBEAT_MS 8000
+#include <hyperenclave/header.h>
 
-extern cpumask_t *vmm_states;
-extern cpumask_t initial_vmm_states;
+#define HHBOX_LOG_HEARTBEAT_MS_DEFAULT 10
+#define HHBOX_CRASH_HEARTBEAT_MS 1000
 
-extern struct workqueue_struct *vmm_check_wq;
-DECLARE_PER_CPU(struct delayed_work, vmm_check_work);
+void he_flush_log(void);
+int he_init_log(struct hyper_header *header);
+int he_deinit_log(void);
 
-extern struct delayed_work flush_hv_log_work;
+#define LOGENTRY_SIZE 160
+#define LOG_SIZE_DEFAULT 512
 
-void register_vmm_check_wq(void);
-void deregister_vmm_check_wq(void);
-bool alloc_vmm_check_wq(void);
-void dealloc_vmm_check_wq(void);
+struct he_logentry {
+	char buf[LOGENTRY_SIZE];
+	bool used;
+};
 
-void register_flush_hv_log_work(void);
-void deregister_flush_hv_log_work(void);
+struct he_log {
+	uint32_t log_lost;
+	ulong size;
+	struct he_logentry log[0];
+};
 
 #endif

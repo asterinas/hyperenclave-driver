@@ -6,12 +6,12 @@
  */
 
 #include <hyperenclave/header.h>
+#include <hyperenclave/util.h>
 #include <hyperenclave/log.h>
 #include <hyperenclave/tdm.h>
 
 #include "debug.h"
 #include "elf.h"
-#include "main.h"
 
 bool load_elf_and_parse_tdm_info(u8 *dst, const u8 *src, u64 phys,
 				 unsigned long sme_flags)

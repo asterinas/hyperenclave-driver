@@ -9,8 +9,7 @@
 
 #include <hyperenclave/log.h>
 #include <hyperenclave/sme.h>
-
-#include "main.h"
+#include <hyperenclave/util.h>
 
 void *he_ioremap(phys_addr_t phys, unsigned long virt, unsigned long size,
 		 unsigned long sme_flags)
@@ -20,13 +19,13 @@ void *he_ioremap(phys_addr_t phys, unsigned long virt, unsigned long size,
 
 	size = PAGE_ALIGN(size);
 	if (virt)
-		vma = __get_vm_area(size, VM_IOREMAP, virt,
+		vma = he_get_vm_area(size, VM_IOREMAP, virt,
 				    virt + size + PAGE_SIZE);
 	else
-		vma = __get_vm_area(size, VM_IOREMAP, VMALLOC_START,
+		vma = he_get_vm_area(size, VM_IOREMAP, VMALLOC_START,
 				    VMALLOC_END);
 	if (!vma) {
-		he_err("__get_vm_area return failed\n");
+		he_err("he_get_vm_area return failed\n");
 		return NULL;
 	}
 	vma->phys_addr = phys;

@@ -11,9 +11,9 @@
 #include <linux/kref.h>
 
 #include <hyperenclave/enclave_config.h>
+#include <hyperenclave/util.h>
 
 #include "ioctl.h"
-#include "main.h"
 #include "stats.h"
 #include "shared_mem.h"
 

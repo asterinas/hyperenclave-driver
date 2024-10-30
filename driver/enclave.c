@@ -5,15 +5,13 @@
  * Copyright (C) 2020-2023 The HyperEnclave Project. All rights reserved.
  */
 
-#include <linux/sched/mm.h>
 #include <linux/shmem_fs.h>
-#include <linux/version.h>
 #include <hyperenclave/hypercall.h>
+#include <hyperenclave/util.h>
 #include <hyperenclave/log.h>
 
 #include "enclave.h"
 #include "feature.h"
-#include "main.h"
 #include "reclaim.h"
 #include "sysfs.h"
 
@@ -189,16 +187,16 @@ int find_enclave(struct mm_struct *mm, unsigned long addr,
 {
 	struct vm_area_struct *vma;
 
-	down_read(&mm->mmap_sem);
+	he_mmap_read_lock(mm);
 	vma = find_vma(mm, addr);
 	if (!vma || vma->vm_ops != &he_vm_ops || addr < vma->vm_start) {
-		up_read(&mm->mmap_sem);
+		he_mmap_read_unlock(mm);
 		he_err("find_vma failed\n");
 		return -EINVAL;
 	}
 
 	*encl = vma->vm_private_data;
-	up_read(&mm->mmap_sem);
+	he_mmap_read_unlock(mm);
 
 	return *encl ? 0 : -ENOENT;
 }
@@ -266,13 +264,13 @@ int he_cmd_encl_create(struct he_encl_create __user *arg)
 	}
 
 	encl->mm = current->mm;
-	down_read(&current->mm->mmap_sem);
+	he_mmap_read_lock(current->mm);
 	vma = find_vma(current->mm, encl->config.start_gva);
 	if (vma) {
 		vma->vm_private_data = encl;
-		up_read(&current->mm->mmap_sem);
+		he_mmap_read_unlock(current->mm);
 	} else {
-		up_read(&current->mm->mmap_sem);
+		he_mmap_read_unlock(current->mm);
 		err = -EINVAL;
 		he_err("encl: 0x%px, find_vma failed\n", encl);
 		goto out_destroy_backing;
@@ -376,11 +374,11 @@ int he_cmd_encl_add_page(struct he_encl_add_page __user *arg)
 		mutex_unlock(&encl->lock);
 	}
 
-	down_read(&current->mm->mmap_sem);
+	he_mmap_read_lock(current->mm);
 	vma = find_vma(current->mm, enclave_lin_addr);
 	if (!vma || vma->vm_ops != &he_vm_ops ||
 	    enclave_lin_addr < vma->vm_start) {
-		up_read(&current->mm->mmap_sem);
+		he_mmap_read_unlock(current->mm);
 		he_err("encl: 0x%px, find_vma failed\n", encl);
 		err = -EINVAL;
 		goto err_free_va_page;
@@ -388,7 +386,7 @@ int he_cmd_encl_add_page(struct he_encl_add_page __user *arg)
 
 	epc_page_pa = epc_entry->desc;
 	err = vmf_insert_pfn(vma, enclave_lin_addr, PFN_DOWN(epc_page_pa));
-	up_read(&current->mm->mmap_sem);
+	he_mmap_read_unlock(current->mm);
 	if (err != VM_FAULT_NOPAGE) {
 		he_err("encl: 0x%px, insert_pfn failed\n", encl);
 		goto err_free_va_page;
@@ -1100,12 +1098,12 @@ void he_zap_enclave_ptes(struct he_enclave *encl, unsigned long addr)
 		return;
 	}
 
-	down_read(&encl->mm->mmap_sem);
+	he_mmap_read_lock(encl->mm);
 	vma = find_vma(encl->mm, addr);
 	if (vma && encl == vma->vm_private_data) {
 		zap_vma_ptes(vma, addr, PAGE_SIZE);
 	}
-	up_read(&encl->mm->mmap_sem);
+	he_mmap_read_unlock(encl->mm);
 	mmput_async_sym(encl->mm);
 }
 
