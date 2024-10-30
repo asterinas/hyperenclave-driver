@@ -239,7 +239,8 @@ int he_cmd_encl_create(struct he_encl_create __user *arg)
 
 	/* File backing size consists of total enclave pages's size and PCMD size */
 	backing = shmem_file_setup("HE backing",
-				   encl->config.size + (encl->config.size / PCMD_COUNT),
+				   encl->config.size +
+					   (encl->config.size / PCMD_COUNT),
 				   VM_NORESERVE);
 	if (IS_ERR(backing)) {
 		err = PTR_ERR(backing);
@@ -814,7 +815,7 @@ static void encl_remove_pages_at_destroy(struct he_enclave *encl)
 
 	num = 0;
 	// Remove regular page
-	radix_tree_for_each_slot(slot, &encl->page_tree, &iter, 0) {
+	radix_tree_for_each_slot (slot, &encl->page_tree, &iter, 0) {
 		encl_page = *slot;
 		radix_tree_delete(&encl->page_tree,
 				  encl_page->desc >> PAGE_SHIFT);

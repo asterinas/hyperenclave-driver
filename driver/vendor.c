@@ -11,11 +11,8 @@
 #include <hyperenclave/vendor.h>
 
 static const char *cpu_vendor_table[HE_VENDOR_MAX] = {
-	"Unknown",
-	"GenuineIntel",
-	"AuthenticAMD",
-	"HygonGenuine",
-	"CentaurHauls",
+	"Unknown",	"GenuineIntel", "AuthenticAMD",
+	"HygonGenuine", "CentaurHauls",
 };
 
 enum cpu_vendor vendor;

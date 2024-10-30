@@ -64,6 +64,8 @@
 #include "sysfs.h"
 #include "tpm.h"
 
+#define C_DRIVER_VERSION 20231012000ULL /* yyyymmdd??? */
+
 #ifdef CONFIG_X86_32
 #error 64-bit kernel required!
 #endif
@@ -161,7 +163,6 @@ static void enter_hypervisor(void *info)
 	if (err)
 		error_code = err;
 
-
 	atomic_inc(&call_done);
 }
 
@@ -233,10 +234,9 @@ int he_cmd_enable(void)
 	if (boot_cpu_has(X86_FEATURE_VMX)) {
 		u64 features;
 
-		HE_RDMSRL_IA32_FEATURE_CONTROL(features)
+		HE_RDMSRL_IA32_FEATURE_CONTROL(features);
 
-		if ((features & HE_ENABLE_VMX_FLAG) == 0)
-		{
+		if ((features & HE_ENABLE_VMX_FLAG) == 0) {
 			he_err("VT-x disabled by Firmware/BIOS\n");
 			err = -ENODEV;
 			goto error_put_module;
@@ -310,6 +310,13 @@ int he_cmd_enable(void)
 	}
 
 	header = (struct hyper_header *)hypervisor_mem;
+
+	if (header->version != C_DRIVER_VERSION) {
+		he_err("Version mismatch %llu v. %llu", header->version,
+		       C_DRIVER_VERSION);
+		err = -EINVAL;
+		goto error_unmap;
+	}
 
 	set_convertible_mem(header);
 	set_heap_size(header);
@@ -489,7 +496,16 @@ static void leave_hypervisor(void *info)
 	if (err)
 		error_code = err;
 
-	/* on Intel, VMXE is now off - update the shadow */
+	/*
+	 * commit log of CR4 shadow:
+	 * Context switches and TLB flushes can change individual bits of CR4.
+	 * CR4 reads take several cycles, so store a shadow copy of CR4 in a
+	 * per-cpu variable.
+	 *
+	 * Right before exiting HyperEnclave and returning to Linux, HyperEnclave
+	 * clear CR4 VMXE bit. Yet it has no knowledge of Linux per-cpu CR4 shadow.
+	 * Here we update current CR4 to its shadow.
+	 */
 	he_cr4_clear_vmxe();
 
 	atomic_inc(&call_done);

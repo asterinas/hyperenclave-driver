@@ -232,7 +232,8 @@ static int write_back_page(struct epc_page *epc_page)
 
 			time_ipi_s =
 				stats_get_cycles(STATS_WRITE_BACK_PAGE_IPI);
-			on_each_cpu_mask(mm_cpumask(encl->mm), he_ipi_cb, NULL, 1);
+			on_each_cpu_mask(mm_cpumask(encl->mm), he_ipi_cb, NULL,
+					 1);
 			time_ipi_e =
 				stats_get_cycles(STATS_WRITE_BACK_PAGE_IPI);
 			stats_add(encl, STATS_WRITE_BACK_PAGE_IPI,

@@ -22,10 +22,6 @@
 
 #include <hyperenclave/system_config.h>
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 14, 0)
-#define DISABLE_LOGGING
-#endif
-
 extern int len_memmap_paras;
 extern char *str_memmap[2];
 
@@ -38,7 +34,8 @@ extern unsigned long hv_core_and_percpu_size;
 extern void (*mmput_async_sym)(struct mm_struct *mm);
 extern typeof(ioremap_page_range) *ioremap_page_range_sym;
 #ifdef CONFIG_X86
-extern void (*flush_tlb_kernel_range_sym)(unsigned long start, unsigned long end);
+extern void (*flush_tlb_kernel_range_sym)(unsigned long start,
+					  unsigned long end);
 #endif
 
 void he_ipi_cb(void *info);
@@ -65,16 +62,16 @@ static inline void he_mmap_read_unlock(struct mm_struct *mm)
 
 int he_kallsyms_init(void);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
-#define HE_RDMSRL_IA32_FEATURE_CONTROL(features)		\
-	do {												\
-		rdmsrl(MSR_IA32_FEAT_CTL, features);			\
-	} while(0);
+#ifdef MSR_IA32_FEAT_CTL
+#define HE_RDMSRL_IA32_FEATURE_CONTROL(features)     \
+	do {                                         \
+		rdmsrl(MSR_IA32_FEAT_CTL, features); \
+	} while (0)
 #else
-#define HE_RDMSRL_IA32_FEATURE_CONTROL(features)		\
-	do {												\
-		rdmsrl(MSR_IA32_FEAT_CTL, features);			\
-	} while(0);
+#define HE_RDMSRL_IA32_FEATURE_CONTROL(features)            \
+	do {                                                \
+		rdmsrl(MSR_IA32_FEATURE_CONTROL, features); \
+	} while (0)
 #endif
 
 /* The evidence of abbreviation holy-war. */
@@ -85,26 +82,33 @@ int he_kallsyms_init(void);
 #endif
 
 static inline struct vm_struct *he_get_vm_area(unsigned long size,
-		unsigned long flags, unsigned long start, unsigned long end)
+					       unsigned long flags,
+					       unsigned long start,
+					       unsigned long end)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0) 
-	extern struct vm_struct *(*__get_vm_area_caller_sym)(unsigned long,
-			unsigned long, unsigned long, unsigned long, void*);
-	return __get_vm_area_caller_sym(size, flags, start, end, __builtin_return_address(0));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+	extern struct vm_struct *(*__get_vm_area_caller_sym)(
+		unsigned long, unsigned long, unsigned long, unsigned long,
+		void *);
+	return __get_vm_area_caller_sym(size, flags, start, end,
+					__builtin_return_address(0));
 #else
-	extern struct vm_struct *(*__get_vm_area_sym)(unsigned long,
-			unsigned long, unsigned long, unsigned long);
+	extern struct vm_struct *(*__get_vm_area_sym)(
+		unsigned long, unsigned long, unsigned long, unsigned long);
 	return __get_vm_area_sym(size, flags, start, end);
 #endif
 }
 
 static inline void he_cr4_clear_vmxe(void)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,5,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 	cr4_clear_bits_irqsoff(X86_CR4_VMXE);
 #else
 	cr4_clear_bits(X86_CR4_VMXE);
 #endif
 }
 
-#endif /*_HYPERENCLAVE_UTIL_H_ */ 
+/* Directly forward log generated in hyperenclave to the kernel log buffer. */
+/* #define CONFIG_DIRECT_KERN_LOGGING */
+
+#endif /*_HYPERENCLAVE_UTIL_H_ */

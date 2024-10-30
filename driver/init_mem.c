@@ -119,7 +119,9 @@ static const char *e820_type_to_string(struct e820_entry *entry)
 static int cmp_func(const void *a, const void *b)
 {
 	return ((struct memory_range *)a)->start >
-		((struct memory_range *)b)->start ? 1 : -1;
+			       ((struct memory_range *)b)->start ?
+		       1 :
+		       -1;
 }
 
 int get_convertible_memory(void)

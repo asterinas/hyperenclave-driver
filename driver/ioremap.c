@@ -20,10 +20,10 @@ void *he_ioremap(phys_addr_t phys, unsigned long virt, unsigned long size,
 	size = PAGE_ALIGN(size);
 	if (virt)
 		vma = he_get_vm_area(size, VM_IOREMAP, virt,
-				    virt + size + PAGE_SIZE);
+				     virt + size + PAGE_SIZE);
 	else
 		vma = he_get_vm_area(size, VM_IOREMAP, VMALLOC_START,
-				    VMALLOC_END);
+				     VMALLOC_END);
 	if (!vma) {
 		he_err("he_get_vm_area return failed\n");
 		return NULL;
