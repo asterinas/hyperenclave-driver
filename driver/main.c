@@ -64,8 +64,6 @@
 #include "sysfs.h"
 #include "tpm.h"
 
-#define C_DRIVER_VERSION 20231012000ULL /* yyyymmdd??? */
-
 #ifdef CONFIG_X86_32
 #error 64-bit kernel required!
 #endif
@@ -85,7 +83,7 @@ MODULE_FIRMWARE(HE_INTEL_FW_NAME);
 #else
 MODULE_FIRMWARE(HE_FW_NAME);
 #endif
-MODULE_VERSION(HE_VERSION);
+MODULE_VERSION(HE_VERSION_LONG);
 
 /*
  * memmap_ranges are reserved physical memory regions which are used for
@@ -129,6 +127,13 @@ void (*mmput_async_sym)(struct mm_struct *mm);
 
 #ifdef CONFIG_X86
 bool use_vmcall;
+
+static void to_subversion(u32 version, u8 *a, u8 *b, u8 *c)
+{
+	*c = version & 0xFF;
+	*b = (version >> 8) & 0xFF;
+	*a = (version >> 16) & 0xFF;
+}
 
 static void init_hypercall(void)
 {
@@ -311,9 +316,15 @@ int he_cmd_enable(void)
 
 	header = (struct hyper_header *)hypervisor_mem;
 
-	if (header->version != C_DRIVER_VERSION) {
-		he_err("Version mismatch %llu v. %llu", header->version,
-		       C_DRIVER_VERSION);
+	if (header->version != HE_VERSION_SHORT) {
+		u8 rha, rhb, rhc, hea, heb, hec;
+
+		to_subversion(header->version, &rha, &rhb, &rhc);
+		to_subversion(HE_VERSION_SHORT, &hea, &heb, &hec);
+
+		he_err("Version mismatch. c-driver "
+		       "v%d.%d.%d v. rust-hypervisor v%d.%d.%d\n",
+		       hea, heb, hec, rha, rhb, rhc);
 		err = -EINVAL;
 		goto error_unmap;
 	}
@@ -551,6 +562,8 @@ int he_cmd_disable(void)
 		goto out;
 	}
 
+	he_deinit_log();
+
 	tdm.ops->clear_tdm_info();
 	module_put(THIS_MODULE);
 	he_info("The hyperenclave was closed.\n");
@@ -589,6 +602,8 @@ static struct notifier_block he_shutdown_nb = {
 static int __init he_init(void)
 {
 	int err;
+
+	he_info("C-Driver version %s\n", HE_VERSION_LONG);
 
 	if (he_kallsyms_init() != 0) {
 		he_err("Fail to initialize kernel symbols.\n");
@@ -653,7 +668,6 @@ static void __exit he_exit(void)
 	he_firmware_free();
 	unregister_sysctl_table(hyper_enclave_table_header);
 	tdm.ops->proc_remove();
-	he_deinit_log();
 	free_epc_pages();
 }
 
