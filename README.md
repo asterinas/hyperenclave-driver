@@ -75,8 +75,10 @@ Parameter `feature_mask` is a ulong type variable used to enable/didable HyperEn
 
 # Compatibility
 
-## Kernel Compatibility
-This code has been tested with Linux kernel 4.19 and Linux kernel 5.4.
+## Kernel and OS Compatibility
+This code has been tested with Linux kernel 5.4 and Linux kernel 5.10 with Ubuntu OS.
+
+**Updates on 2024.11:** We do not support Linux kernel 4.19 with Ubuntu OS anymore.
 
 ## GCC Compatibility
 This code has been tested with GCC >= 6.5.
